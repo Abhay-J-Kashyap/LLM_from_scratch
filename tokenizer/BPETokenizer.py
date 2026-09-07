@@ -1,6 +1,5 @@
 import regex
 
-
 class BPETokenizer:
 
     def __init__(self, vocab, merges, pattern):
