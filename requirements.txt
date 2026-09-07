@@ -1,0 +1,16 @@
+# core
+torch>=2.2
+numpy
+
+# tokenizer
+tiktoken
+regex
+
+# data pipeline (for later — pulling FineWeb-Edu/TinyStories etc.)
+datasets
+
+# training / observability
+wandb
+
+# testing (for the pytest scaffolding from Part D's sanity checks)
+pytest
