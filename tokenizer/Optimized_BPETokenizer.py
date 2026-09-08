@@ -1,30 +1,8 @@
-"""
-build_tokenizer_corpus.py
-
-Streams a proportional sample from the five sources cosmo2-tokenizer was
-trained on (FineWeb-Edu 70% / Cosmopedia v2 15% / StarCoderData 8% /
-OpenWebMath 5% / StackOverflow 2%), caches each source's raw text locally
-as JSONL, then trains a byte-level BPE tokenizer on the combined sample
-using the GPT-4 pretokenizer regex.
-
-Prereqs:
-    pip install datasets tokenizers huggingface_hub
-
-StarCoderData is gated: before running this script, accept the terms at
-https://huggingface.co/datasets/bigcode/starcoderdata and run:
-    huggingface-cli login
-"""
-
 import json
 import os
 
 from datasets import load_dataset
 
-# ---------------------------------------------------------------------------
-# 1. Define the source mix. Change `fraction` values (must sum to 1.0) or
-#    swap `data_dir` to a different StarCoderData language if you want a
-#    different code/math/prose balance than cosmo2's.
-# ---------------------------------------------------------------------------
 
 SOURCES = [
     {
@@ -45,7 +23,7 @@ SOURCES = [
         "name": "starcoderdata_python",
         "fraction": 0.08,
         "repo_id": "bigcode/starcoderdata",
-        "data_dir": "python",       # gated - see docstring above
+        "data_dir": "python",       
         "text_field": "content",
     },
     {
@@ -60,15 +38,11 @@ SOURCES = [
         "fraction": 0.02,
         "repo_id": "mikex86/stackoverflow-posts",
         "config": None,
-        "text_field": "Body",       # unfiltered: includes both questions and
-                                     # answers, all PostTypeIds. Fine for
-                                     # tokenizer training; filter by
-                                     # PostTypeId in (1, 2) if you want only
-                                     # actual Q&A text for real pretraining.
+        "text_field": "Body",     
     },
 ]
 
-TOTAL_DOCS = 1_000_000   # matches cosmo2-tokenizer's own "1M samples" scale
+TOTAL_DOCS = 1_000_000   
 OUTPUT_DIR = "tokenizer_corpus_cache"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -161,10 +135,27 @@ if __name__ == "__main__":
 
     trainer = BpeTrainer(
         vocab_size=32000,
-        special_tokens=["<|endoftext|>", "<|pad|>"],
+        special_tokens=["<|endoftext|>", "<|pad|>", "<|im_start|>", "<|im_end|>"],
         initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
     )
 
     tokenizer.train_from_iterator(corpus_iterator(paths), trainer=trainer)
     tokenizer.save("my_tokenizer.json")
-    print("Done - tokenizer saved to my_tokenizer.json")
+    print("Done - raw tokenizer saved to my_tokenizer.json")
+
+    # ---- 3. Wrap for the transformers/AutoTokenizer ecosystem -------------
+    # Being in `special_tokens` above only reserves a vocab slot - it doesn't
+    # assign a *role*. bos/eos/pad need to be set explicitly here, or
+    # anything using AutoTokenizer later (your data pipeline, HF Trainer,
+    # etc.) won't know which token to reach for when it needs one.
+    from transformers import PreTrainedTokenizerFast
+
+    fast_tok = PreTrainedTokenizerFast(
+        tokenizer_object=tokenizer,
+        bos_token="<|endoftext|>",
+        eos_token="<|endoftext|>",
+        pad_token="<|pad|>",
+        additional_special_tokens=["<|im_start|>", "<|im_end|>"],
+    )
+    fast_tok.save_pretrained("my_tokenizer_dir")
+    print("Done - HF-wrapped tokenizer saved to my_tokenizer_dir/")
