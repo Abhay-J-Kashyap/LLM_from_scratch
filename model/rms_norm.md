@@ -30,24 +30,121 @@ x4      8    3    2    ↓
 
 Transformers deal with sequences.
 
-Suppose:
-
-> "I love machine learning"
-
-gets represented as:
+Suppose we have these three sentences:
 
 ```text
-                                            hidden dimensions
-                                                ↓
-
-I love machine learning a lot → [0.2, 1.3, -0.5, 0.7, 0.2, -0.1]
-I like cats                   → [0.7, 0.2,  1.1, ___, ___,  ___]
-I am   a       human          → [0.9, 0.4,  0.3, 0.4, ___,  ___]
+Sentence 1: "I love machine learning a lot"
+Sentence 2: "I like cats"
+Sentence 3: "I am a human"
 ```
 
-Padding/masking becomes involved.
+Each token is represented by a vector of `d_model` numbers. For this example, let `d_model = 6`.
 
-When BatchNorm sees a mask, it doesn't ignore it. It is accounted for as zero in the overall normalization.
+```text
+Sentence 1: "I love machine learning a lot"
+
+I          → [0.2,  1.3, -0.5,  0.7,  0.2, -0.1]
+love       → [0.7,  0.2,  1.1,  0.4,  0.8,  0.3]
+machine    → [0.1,  0.9,  0.4, -0.2,  0.6,  1.0]
+learning   → [0.5,  0.3,  0.8,  0.2, -0.1,  0.7]
+a          → [0.4,  0.6, -0.2,  0.9,  0.1,  0.5]
+lot        → [0.8, -0.1,  0.3,  0.5,  0.7,  0.2]
+
+
+Sentence 2: "I like cats"
+
+I          → [0.7,  0.2,  1.1,  0.4,  0.8,  0.3]
+like       → [0.3,  0.9,  0.1,  0.6, -0.2,  0.5]
+cats       → [0.6,  0.4,  0.8, -0.1,  0.3,  0.7]
+
+
+Sentence 3: "I am a human"
+
+I          → [0.9,  0.4,  0.3,  0.4,  0.6,  0.1]
+am         → [0.2,  0.8,  0.5, -0.1,  0.7,  0.3]
+a          → [0.5,  0.3,  0.9,  0.2, -0.2,  0.6]
+human      → [0.7,  0.1,  0.4,  0.8,  0.5,  0.2]
+```
+
+Notice that the sentences have different lengths:
+
+```text
+Sentence 1 → 6 tokens
+Sentence 2 → 3 tokens
+Sentence 3 → 4 tokens
+```
+
+However, when we process them together in a batch, we usually pad the shorter sequences to the same `seq_len`.
+
+Here the longest sentence has 6 tokens, so we pad the other sentences to 6 tokens:
+
+```text
+Sentence 1: "I love machine learning a lot"
+
+I          → [0.2,  1.3, -0.5,  0.7,  0.2, -0.1]
+love       → [0.7,  0.2,  1.1,  0.4,  0.8,  0.3]
+machine    → [0.1,  0.9,  0.4, -0.2,  0.6,  1.0]
+learning   → [0.5,  0.3,  0.8,  0.2, -0.1,  0.7]
+a          → [0.4,  0.6, -0.2,  0.9,  0.1,  0.5]
+lot        → [0.8, -0.1,  0.3,  0.5,  0.7,  0.2]
+
+
+Sentence 2: "I like cats <PAD> <PAD> <PAD>"
+
+I          → [0.7,  0.2,  1.1,  0.4,  0.8,  0.3]
+like       → [0.3,  0.9,  0.1,  0.6, -0.2,  0.5]
+cats       → [0.6,  0.4,  0.8, -0.1,  0.3,  0.7]
+<PAD>      → [0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
+<PAD>      → [0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
+<PAD>      → [0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
+
+
+Sentence 3: "I am a human <PAD> <PAD>"
+
+I          → [0.9,  0.4,  0.3,  0.4,  0.6,  0.1]
+am         → [0.2,  0.8,  0.5, -0.1,  0.7,  0.3]
+a          → [0.5,  0.3,  0.9,  0.2, -0.2,  0.6]
+human      → [0.7,  0.1,  0.4,  0.8,  0.5,  0.2]
+<PAD>      → [0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
+<PAD>      → [0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
+```
+
+Now the batch has the shape:
+
+```text
+(batch, seq_len, d_model)
+(3,      6,       6)
+```
+
+The important part is what LayerNorm does with this tensor.
+
+For one token, for example `I` in Sentence 1:
+
+```text
+I → [0.2, 1.3, -0.5, 0.7, 0.2, -0.1]
+     └─────────────────────────────────┘
+              6 d_model values
+```
+
+LayerNorm calculates the mean and variance **only across these 6 values** and normalizes this token.
+
+It does the same independently for every other token:
+
+```text
+I        → normalize its 6 values
+love     → normalize its 6 values
+machine  → normalize its 6 values
+learning → normalize its 6 values
+...
+```
+
+It does **not** take all the tokens in the sentence and calculate one mean and variance.
+
+It also does not use the values of `love`, `machine`, or `<PAD>` when normalizing the token `I`.
+
+This is why changing the sequence length or adding padding does not change the normalization statistics of the other tokens.
+
+Padding/masking is still important for the Transformer as a whole, because attention should know which positions are padding. But LayerNorm itself operates independently on each token's `d_model`-dimensional representation.
 
 ## Layer Norm
 
