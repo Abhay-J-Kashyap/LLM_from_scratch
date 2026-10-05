@@ -9,18 +9,21 @@
 * Traditional CNNs used BatchNorm which basically uses all the other values in a batch of values to normalize a particular value. 
 
 * Mathematically:   $$ \hat{x} =  \frac{x_i-\mu}{\sqrt{\sigma^2+\epsilon}} $$   
-* then: $$ y_i = γ_i(\hat{x_i}) + β_i $$	​
+* then: $$ y_i = γ_i(\hat{x_i}) + β_i $$	
 
 
 * for an example of a Fully connected NN: 
 
+```text
 Batch × Features
 4 × 3
+
         f1   f2   f3
 x1      2    5    8    ↓
 x2      4    7    6    ↓
 x3      6    9    4    ↓
 x4      8    3    2    ↓
+```
 
 * BatchNorm normally calculates statistics for each feature across the batch
 
@@ -76,7 +79,7 @@ $$ \frac{x_i-\mu}{\sqrt{\sigma^2+\epsilon}} $$
 So LayerNorm is:
 
 centering + scaling
-	​
+	
 ### Types of Layer Norm:
 1. Post Layer Norm (Add&Norm)
 2. Pre Layer Norm
@@ -86,7 +89,7 @@ centering + scaling
 | Feature | Post-Layer Norm (Post-LN) | Pre-Layer Norm (Pre-LN) |
 | :--- | :--- | :--- |
 | **Normalization Order** | Normalization happens **after** the residual addition. | Normalization happens **before** the sub-layer function. |
-| **Formula** | \(x_{l+1} = \text{LayerNorm}(x_l + \text{SubLayer}(x_l))\) | \(x_{l+1} = x_l + \text{SubLayer}(\text{LayerNorm}(x_l))\) |
+| **Formula** | $x_{l+1} = \text{LayerNorm}(x_l + \text{SubLayer}(x_l))$ | $x_{l+1} = x_l + \text{SubLayer}(\text{LayerNorm}(x_l))$ |
 | **Visual Flow** | Input → SubLayer → Add → Norm → Output | Input → Norm → SubLayer → Add → Output |
 
 
@@ -96,19 +99,21 @@ centering + scaling
 * Due to this issue, we are forced to use a warm up phase. So in general, Pre-LN is kind of risky during training as gradients can either explode or vanish.
 * LayerNorm sits on the main path, so the gradient flowing from the loss back to early layers must pass through two LayerNorms per layer (after attention and after the MLP)
 
-* \(x_{l+1} = \text{LayerNorm}(x_l + \text{SubLayer}(x_l))\): 
-What it does: The model processes the data through the attention layer (SubLayer), adds it to the original data (\[\mathbf{x}_{\mathbf{l}}\]), and then normalizes the entire combined result at the very end. 
+* $x_{l+1} = \text{LayerNorm}(x_l + \text{SubLayer}(x_l))$: 
+What it does: The model processes the data through the attention layer (SubLayer), adds it to the original data ($\mathbf{x}_l$), and then normalizes the entire combined result at the very end. 
 
 
 ### Why Pre-LN Has Become the Modern Standard:
-* \(x_{l+1} = x_l + \text{SubLayer}(\text{LayerNorm}(x_l))\):
-What it does: The model takes your text data (\[\mathbf{x}_{\mathbf{l}}\]), cleans it up (LayerNorm), processes it through the attention layer (SubLayer), and then adds it back to the original data. So the original data is preserved here. 
+* $x_{l+1} = x_l + \text{SubLayer}(\text{LayerNorm}(x_l))$:
+What it does: The model takes your text data ($\mathbf{x}_l$), cleans it up (LayerNorm), processes it through the attention layer (SubLayer), and then adds it back to the original data. So the original data is preserved here. 
 
 
 ### Why are Residual connections used as a term hand in hand with LayerNorm:
 * The Problem: In a standard deep network without skips, the error signal gets multiplied by the layer weights over and over. If those weights are small, the signal shrinks exponentially. By the time the error reaches the first few layers, it becomes zero (Vanishing Gradient). The model stops learning. 
 * The Solution: THis is why residual connections are used. The error can travel back during backpropagation freely, while we do the 'Add' part with the residual connection.
 
-*           ┌──────────────── skip path (identity) ───────────────┐
-x ──────────┤                                                     ├──(+)──► y
-            └── LN ──► Attention/MLP ──► (F, the branch) ─────────┘
+```text
+          ┌──────────────── skip path (identity) ───────────────┐
+x ────────┤                                                     ├──(+)──► y
+          └── LN ──► Attention/MLP ──► (F, the branch) ─────────┘
+```
