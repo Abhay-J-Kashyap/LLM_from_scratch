@@ -28,7 +28,7 @@ x4      8    3    2    ↓
 
 ### Why BatchNorm Isn't Ideal for Transformers
 
-Transformers deal with sequences.
+Transformers deal with sequences whose lengths can vary.
 
 Suppose we have these three sentences:
 
@@ -38,35 +38,7 @@ Sentence 2: "I like cats"
 Sentence 3: "I am a human"
 ```
 
-Each token is represented by a vector of `d_model` numbers. For this example, let `d_model = 6`.
-
-```text
-Sentence 1: "I love machine learning a lot"
-
-I          → [0.2,  1.3, -0.5,  0.7,  0.2, -0.1]
-love       → [0.7,  0.2,  1.1,  0.4,  0.8,  0.3]
-machine    → [0.1,  0.9,  0.4, -0.2,  0.6,  1.0]
-learning   → [0.5,  0.3,  0.8,  0.2, -0.1,  0.7]
-a          → [0.4,  0.6, -0.2,  0.9,  0.1,  0.5]
-lot        → [0.8, -0.1,  0.3,  0.5,  0.7,  0.2]
-
-
-Sentence 2: "I like cats"
-
-I          → [0.7,  0.2,  1.1,  0.4,  0.8,  0.3]
-like       → [0.3,  0.9,  0.1,  0.6, -0.2,  0.5]
-cats       → [0.6,  0.4,  0.8, -0.1,  0.3,  0.7]
-
-
-Sentence 3: "I am a human"
-
-I          → [0.9,  0.4,  0.3,  0.4,  0.6,  0.1]
-am         → [0.2,  0.8,  0.5, -0.1,  0.7,  0.3]
-a          → [0.5,  0.3,  0.9,  0.2, -0.2,  0.6]
-human      → [0.7,  0.1,  0.4,  0.8,  0.5,  0.2]
-```
-
-Notice that the sentences have different lengths:
+The sentences have different lengths:
 
 ```text
 Sentence 1 → 6 tokens
@@ -74,9 +46,75 @@ Sentence 2 → 3 tokens
 Sentence 3 → 4 tokens
 ```
 
-However, when we process them together in a batch, we usually pad the shorter sequences to the same `seq_len`.
+When we process them together in a batch, we usually pad the shorter sequences to the same `seq_len`:
 
-Here the longest sentence has 6 tokens, so we pad the other sentences to 6 tokens:
+```text
+Sentence 1: "I love machine learning a lot"
+Sentence 2: "I like cats <PAD> <PAD> <PAD>"
+Sentence 3: "I am a human <PAD> <PAD>"
+```
+
+This gives the batch a fixed shape:
+
+```text
+(batch, seq_len, d_model)
+```
+
+BatchNorm calculates statistics using values across the batch/normalized dimension. With sequences, padding and variable lengths can therefore affect the statistics, making BatchNorm a less natural fit for Transformer representations.
+
+This is one reason LayerNorm is commonly used instead.
+
+## Layer Norm
+
+- Was used by transformers until something better appeared.
+- The fundamental difference is **BatchNorm is ↓ and LayerNorm is →**.
+- For a tensor of shape `(batch, seq_len, d_model)`, LayerNorm computes mean and variance across the `d_model` numbers of each individual token.
+- It does not normalize across the sentence. Each token is handled independently.
+- The formula is exactly the same as BatchNorm. Only the direction along which we normalize differs.
+
+### LayerNorm Example
+
+For this example, let `d_model = 6`:
+
+```text
+Sentence 1: "I love machine learning"
+
+I          → [0.2,  1.3, -0.5,  0.7,  0.2, -0.1]
+love       → [0.7,  0.2,  1.1,  0.4,  0.8,  0.3]
+machine    → [0.1,  0.9,  0.4, -0.2,  0.6,  1.0]
+learning   → [0.5,  0.3,  0.8,  0.2, -0.1,  0.7]
+```
+
+LayerNorm works on one token at a time. For example:
+
+```text
+I → [0.2, 1.3, -0.5, 0.7, 0.2, -0.1]
+     └─────────────────────────────────┘
+              6 d_model values
+```
+
+It calculates the mean and variance across these 6 values, normalizes them, and then moves to the next token.
+
+```text
+I        → normalize its 6 values
+love     → normalize its 6 values
+machine  → normalize its 6 values
+learning → normalize its 6 values
+```
+
+It does **not** take all the tokens in the sentence and calculate one mean and variance.
+
+### LayerNorm With Padding
+
+Now consider the three sentences from the BatchNorm example:
+
+```text
+Sentence 1: "I love machine learning a lot"
+Sentence 2: "I like cats"
+Sentence 3: "I am a human"
+```
+
+After padding to the longest sequence:
 
 ```text
 Sentence 1: "I love machine learning a lot"
@@ -87,7 +125,6 @@ machine    → [0.1,  0.9,  0.4, -0.2,  0.6,  1.0]
 learning   → [0.5,  0.3,  0.8,  0.2, -0.1,  0.7]
 a          → [0.4,  0.6, -0.2,  0.9,  0.1,  0.5]
 lot        → [0.8, -0.1,  0.3,  0.5,  0.7,  0.2]
-
 
 Sentence 2: "I like cats <PAD> <PAD> <PAD>"
 
@@ -97,7 +134,6 @@ cats       → [0.6,  0.4,  0.8, -0.1,  0.3,  0.7]
 <PAD>      → [0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
 <PAD>      → [0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
 <PAD>      → [0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
-
 
 Sentence 3: "I am a human <PAD> <PAD>"
 
@@ -116,46 +152,43 @@ Now the batch has the shape:
 (3,      6,       6)
 ```
 
-The important part is what LayerNorm does with this tensor.
+The important point is that LayerNorm normalizes each token independently across its `d_model` dimensions. The `<PAD>` tokens therefore do not affect the LayerNorm statistics of real tokens such as `I`, `love`, or `cats`.
 
-For one token, for example `I` in Sentence 1:
+Padding is still important for the Transformer as a whole because attention needs to know which positions are padding. LayerNorm itself, however, operates independently on each token's `d_model`-dimensional representation.
+
+### Full LayerNorm Calculation
+
+For the token `I`:
 
 ```text
 I → [0.2, 1.3, -0.5, 0.7, 0.2, -0.1]
-     └─────────────────────────────────┘
-              6 d_model values
 ```
 
-LayerNorm calculates the mean and variance **only across these 6 values** and normalizes this token.
+Mean:
 
-It does the same independently for every other token:
+$$
+\mu = \frac{0.2+1.3-0.5+0.7+0.2-0.1}{6} = 0.3
+$$
+
+Variance:
+
+$$
+\sigma^2 = \frac{(-0.1)^2+(1.0)^2+(-0.8)^2+(0.4)^2+(-0.1)^2+(-0.4)^2}{6} = 0.33
+$$
+
+Normalize:
+
+$$
+\hat{x_i}=\frac{x_i-\mu}{\sqrt{\sigma^2+\epsilon}}
+$$
+
+Approximately:
 
 ```text
-I        → normalize its 6 values
-love     → normalize its 6 values
-machine  → normalize its 6 values
-learning → normalize its 6 values
-...
+I → [-0.174, 1.740, -1.392, 0.696, -0.174, -0.696]
 ```
 
-It does **not** take all the tokens in the sentence and calculate one mean and variance.
-
-It also does not use the values of `love`, `machine`, or `<PAD>` when normalizing the token `I`.
-
-This is why changing the sequence length or adding padding does not change the normalization statistics of the other tokens.
-
-Padding/masking is still important for the Transformer as a whole, because attention should know which positions are padding. But LayerNorm itself operates independently on each token's `d_model`-dimensional representation.
-
-## Layer Norm
-
-- Was used by transformers until something better appeared.
-- The fundamental difference is **BatchNorm is ↓ and LayerNorm is →**.
-- For a tensor of shape `(batch, seq_len, d_model)`, LayerNorm computes mean and variance across the `d_model` numbers of each individual token. It does not normalize across the sentence. Each token is handled independently, which is why padding and sequence length don't matter to it.
-- The formula is exactly the same as BatchNorm. Only the direction along which we normalize differs.
-- Mathematically: $\hat{x} = \frac{x_i-\mu}{\sqrt{\sigma^2+\epsilon}}$
-- Then: $y_i = \gamma_i(\hat{x_i}) + \beta_i$
-
-Importantly, the normalization of one token does not depend on other tokens or other examples in the batch.
+The exact same process is performed independently for `love`, `machine`, `learning`, and every other token.
 
 ### LayerNorm Does Two Things
 
