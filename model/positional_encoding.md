@@ -251,6 +251,15 @@ The important difference is that binary encoding uses discrete bits that switch 
 
 The analogy is useful for understanding the different rates of change, but the two encodings are not mathematically equivalent.
 
+### Visualizing the positional encoding patterns
+
+When positional encodings are plotted as a heatmap, each column corresponds to a vector dimension and each row corresponds to a token position. The different frequencies create visible bands and wave-like patterns: some dimensions change rapidly across positions, while others change slowly.
+
+These two articles include useful visual explanations:
+
+- [Positional Encodings: Main Approaches — Medium (Mantis NLP)](https://medium.com/mantisnlp/positional-encodings-i-main-approaches-bd1199d6770d)
+- [Designing Positional Encodings — Hugging Face (animation)](https://huggingface.co/blog/designing-positional-encoding#:~:text=The%20above%20animation%20visualizes%20our%20position%20embedding%20if%20each%20component%20is%20alternatively%20drawn%20from)
+
 ## 8. How do we combine the positional vector with the token embedding?
 
 Suppose a token is converted into an embedding vector:
@@ -483,8 +492,8 @@ An equivalent intuition is that each sine-cosine pair rotates through an angle $
 Self-attention calculates relationships between token representations using queries, keys, and values:
 
 $$
-\operatorname{Attention}(Q,K,V) =
-\operatorname{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+\mathrm{Attention}(Q,K,V) =
+\mathrm{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
 $$
 
 The queries and keys are learned projections of the representations that already contain positional information.
@@ -530,6 +539,8 @@ Most importantly, each sine-cosine pair has the property that shifting a positio
 
 This was the approach used in the original *Attention Is All You Need* paper. Not every modern Transformer uses this exact encoding scheme; other approaches to positional information are also widely used.
 
-## Reference
+## References and further visualization
 
 - Vaswani et al., [*Attention Is All You Need*](https://arxiv.org/abs/1706.03762), 2017.
+- [Positional Encodings: Main Approaches — Medium (Mantis NLP)](https://medium.com/mantisnlp/positional-encodings-i-main-approaches-bd1199d6770d)
+- [Designing Positional Encodings — Hugging Face (animation)](https://huggingface.co/blog/designing-positional-encoding#:~:text=The%20above%20animation%20visualizes%20our%20position%20embedding%20if%20each%20component%20is%20alternatively%20drawn%20from)
