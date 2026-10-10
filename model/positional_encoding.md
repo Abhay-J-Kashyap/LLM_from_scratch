@@ -257,7 +257,7 @@ When positional encodings are plotted as a heatmap, each column corresponds to a
 
 These two articles include useful visual explanations:
 
-- [Positional Encodings: Main Approaches — Medium (Mantis NLP)](https://medium.com/mantisnlp/positional-encodings-i-main-approaches-bd1199d6770d)
+- [Positional Encodings: Main Approaches — Medium (Mantis NLP)](https://miro.medium.com/v2/resize:fit:1100/format:webp/0*_GtUy1Xw9KDLBmAc)
 - [Designing Positional Encodings — Hugging Face (animation)](https://huggingface.co/blog/designing-positional-encoding#:~:text=The%20above%20animation%20visualizes%20our%20position%20embedding%20if%20each%20component%20is%20alternatively%20drawn%20from)
 
 ## 8. How do we combine the positional vector with the token embedding?
@@ -542,5 +542,5 @@ This was the approach used in the original *Attention Is All You Need* paper. No
 ## References and further visualization
 
 - Vaswani et al., [*Attention Is All You Need*](https://arxiv.org/abs/1706.03762), 2017.
-- [Positional Encodings: Main Approaches — Medium (Mantis NLP)](https://medium.com/mantisnlp/positional-encodings-i-main-approaches-bd1199d6770d)
+- [Positional Encodings: Main Approaches — Medium (Mantis NLP)](https://miro.medium.com/v2/resize:fit:1100/format:webp/0*_GtUy1Xw9KDLBmAc)
 - [Designing Positional Encodings — Hugging Face (animation)](https://huggingface.co/blog/designing-positional-encoding#:~:text=The%20above%20animation%20visualizes%20our%20position%20embedding%20if%20each%20component%20is%20alternatively%20drawn%20from)
